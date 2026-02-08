@@ -1,9 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
-using Overseer.OctoPrint.Channels;
-using Overseer.OctoPrint.Machines;
-using Overseer.OctoPrint.Machines.Octoprint;
-using Overseer.OctoPrint.Models;
 using Overseer.Server.Integration;
+using Overseer.Server.Integration.Machines;
 
 namespace Overseer.OctoPrint;
 
@@ -11,15 +8,9 @@ public class OctoPrintPluginConfiguration : IPluginConfiguration
 {
   public void ConfigureServices(IServiceCollection services)
   {
-    services.AddTransient<IMachineProvider<OctoprintMachine>, OctoprintMachineProvider>();
-    services.AddSingleton<IMachineStatusChannel, DefaultMachineStatusChannel>();
-  }
-}
-
-public class DefaultMachineStatusChannel : IMachineStatusChannel
-{
-  public Task WriteAsync(MachineStatus status, CancellationToken cancellationToken = default)
-  {
-    return Task.CompletedTask;
+    services.AddSingleton<MachineProviderFactory<OctoPrintMachine, OctoPrintMachineProvider>>(serviceProvider =>
+    {
+      return machine => ActivatorUtilities.CreateInstance<OctoPrintMachineProvider>(serviceProvider, machine);
+    });
   }
 }
