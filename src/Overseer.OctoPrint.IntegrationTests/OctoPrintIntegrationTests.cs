@@ -91,7 +91,6 @@ public class OctoPrintIntegrationTests
   public async Task TestOfflineState()
   {
     // Setup: OctoPrint should be physically disconnected from printer or server down?
-    // Based on implementation, if State is not Printing/Paused, it is Idle.
     // If the server is unreachable, it logs error and sends empty status (which defaults to Idle/Unknown).
     // For the purpose of this test, we assume "Offline" means the OctoPrint instance reports disconnect from Printer.
 
@@ -99,8 +98,6 @@ public class OctoPrintIntegrationTests
     using var provider = new OctoPrintMachineProvider(machine, new SimpleHttpClientFactory());
 
     var status = await GetStatusAsync(provider);
-
-    // OctoPrint provider currently maps other states to Idle
-    Assert.Equal(MachineState.Idle, status.State);
+    Assert.Equal(MachineState.Offline, status.State);
   }
 }
