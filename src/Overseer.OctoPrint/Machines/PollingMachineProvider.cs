@@ -57,6 +57,7 @@ public abstract class PollingMachineProvider<TMachine> : MachineProvider<TMachin
     if (_stopwatch.IsRunning && _stopwatch.Elapsed.TotalMinutes < ExceptionTimeout)
     {
       await StatusChannel.WriteAsync(new() { MachineId = MachineId }, _cancellation?.Token ?? default);
+      return;
     }
 
     try
