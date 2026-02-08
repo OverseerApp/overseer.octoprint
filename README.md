@@ -103,7 +103,7 @@ src/Overseer.OctoPrint/
 ## Dependencies
 
 - .NET 10.0
-- Overseer.Server.Integration (1.1.0-rc.2)
+- Overseer.Server.Integration (1.1.0-rc.3)
 - Microsoft.Extensions.Http (10.0.2)
 - log4net (3.0.1)
 

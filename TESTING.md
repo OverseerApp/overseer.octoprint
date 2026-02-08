@@ -52,5 +52,5 @@ $env:OCTOPRINT_URL="http://your-octoprint-url"
 $env:OCTOPRINT_APIKEY="your-api-key"
 
 # Run tests
-dotnet test tests/Overseer.OctoPrint.IntegrationTests
+dotnet test src/Overseer.OctoPrint.IntegrationTests
 ```

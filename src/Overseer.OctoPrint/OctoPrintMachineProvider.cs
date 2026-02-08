@@ -108,7 +108,8 @@ public sealed class OctoPrintMachineProvider(OctoPrintMachine machine, IHttpClie
           tools.Add(new MachineTool(MachineToolType.Heater, 0));
         }
 
-        for (int i = 0; i < profile.Extruder?.Count; i++)
+        var extruderCount = profile.Extruder?.Count ?? 0;
+        for (int i = 0; i < extruderCount; i++)
         {
           if (!profile.Extruder.SharedNozzle)
           {
@@ -238,11 +239,18 @@ public sealed class OctoPrintMachineProvider(OctoPrintMachine machine, IHttpClie
       throw new Exception($"StatusCode: {(int)response.StatusCode}\nContent: {content}");
     }
 
-    if (response.Content.Headers.ContentType?.MediaType?.Contains("json") != true)
+    // Handle successful responses with no content explicitly (e.g., HTTP 204).
+    if (response.StatusCode == HttpStatusCode.NoContent)
     {
       return default!;
     }
 
+    // For other successful responses, we expect JSON; treat unexpected content types as errors.
+    if (response.Content.Headers.ContentType?.MediaType?.Contains("json", StringComparison.OrdinalIgnoreCase) != true)
+    {
+      var contentType = response.Content.Headers.ContentType?.ToString() ?? "<unknown>";
+      throw new Exception($"Unexpected content type: {contentType}. Expected JSON response.");
+    }
     return (await response.Content.ReadFromJsonAsync<T>(new JsonSerializerOptions { PropertyNameCaseInsensitive = true }))!;
   }
 
@@ -334,18 +342,21 @@ public sealed class OctoPrintMachineProvider(OctoPrintMachine machine, IHttpClie
     return httpClientFactory.CreateClient();
   }
 
-  X509Certificate2Collection? GetClientCertificate(string? commonName)
+  X509Certificate2Collection? GetClientCertificate(string? thumbprint)
   {
-    if (string.IsNullOrWhiteSpace(commonName))
+    if (string.IsNullOrWhiteSpace(thumbprint))
       return null;
 
-    if (_clientCertificateChain?.Find(X509FindType.FindBySubjectName, commonName, false).Count > 0)
+    // Normalize thumbprint by removing spaces that are often present when copied from UI tools
+    var normalizedThumbprint = thumbprint.Replace(" ", string.Empty);
+
+    if (_clientCertificateChain?.Find(X509FindType.FindByThumbprint, normalizedThumbprint, false).Count > 0)
       return _clientCertificateChain;
 
     var certificateStore = new X509Store(StoreName.My, StoreLocation.CurrentUser);
     certificateStore.Open(OpenFlags.ReadOnly);
 
-    _clientCertificateChain = certificateStore.Certificates.Find(X509FindType.FindBySubjectName, commonName, false);
+    _clientCertificateChain = certificateStore.Certificates.Find(X509FindType.FindByThumbprint, normalizedThumbprint, false);
     certificateStore.Close();
 
     return _clientCertificateChain;
