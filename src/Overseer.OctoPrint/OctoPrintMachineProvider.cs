@@ -4,6 +4,7 @@ using System.Net.Http.Json;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.Json;
+using System.Threading;
 using log4net;
 using Overseer.OctoPrint.Models;
 using Overseer.Server.Integration.Machines;
@@ -26,6 +27,8 @@ public sealed class OctoPrintMachineProvider(OctoPrintMachine machine, IHttpClie
   const int ExceptionTimeout = 2;
 
   readonly Stopwatch _stopwatch = new();
+
+  readonly SemaphoreSlim _pollSemaphore = new(1, 1);
 
   Timer? _timer;
 
@@ -111,7 +114,7 @@ public sealed class OctoPrintMachineProvider(OctoPrintMachine machine, IHttpClie
         var extruderCount = profile.Extruder?.Count ?? 0;
         for (int i = 0; i < extruderCount; i++)
         {
-          if (!profile.Extruder.SharedNozzle)
+          if (profile.Extruder?.SharedNozzle == false)
           {
             tools.Add(new MachineTool(MachineToolType.Heater, i));
           }
@@ -144,65 +147,77 @@ public sealed class OctoPrintMachineProvider(OctoPrintMachine machine, IHttpClie
 
   async Task Poll()
   {
-    if (_stopwatch.IsRunning && _stopwatch.Elapsed.TotalMinutes < ExceptionTimeout)
+    if (!await _pollSemaphore.WaitAsync(0))
     {
-      StatusUpdated?.Invoke(this, new MachineStatusEventArgs(new() { MachineId = Machine.Id }));
       return;
     }
 
     try
     {
-      var printerStatus = await Retrieve<Status>("api/printer");
-      var status = new MachineStatus { MachineId = Machine.Id };
-      Machine
-        .Tools.Where(t => t.ToolType == MachineToolType.Heater)
-        .ToList()
-        .ForEach(t =>
-        {
-          var key = t.Index == -1 ? "bed" : $"tool{t.Index}";
-          if (printerStatus.Temperature?.TryGetValue(key, out var temp) == true)
+      if (_stopwatch.IsRunning && _stopwatch.Elapsed.TotalMinutes < ExceptionTimeout)
+      {
+        StatusUpdated?.Invoke(this, new MachineStatusEventArgs(new() { MachineId = Machine.Id }));
+        return;
+      }
+
+      try
+      {
+        var printerStatus = await Retrieve<Status>("api/printer");
+        var status = new MachineStatus { MachineId = Machine.Id };
+        Machine
+          .Tools.Where(t => t.ToolType == MachineToolType.Heater)
+          .ToList()
+          .ForEach(t =>
           {
-            status.Temperatures.Add(
-              t.Index,
-              new()
-              {
-                HeaterIndex = t.Index,
-                Actual = temp.Actual ?? 0,
-                Target = temp.Target ?? 0,
-              }
-            );
-          }
-        });
+            var key = t.Index == -1 ? "bed" : $"tool{t.Index}";
+            if (printerStatus.Temperature?.TryGetValue(key, out var temp) == true)
+            {
+              status.Temperatures.Add(
+                t.Index,
+                new()
+                {
+                  HeaterIndex = t.Index,
+                  Actual = temp.Actual ?? 0,
+                  Target = temp.Target ?? 0,
+                }
+              );
+            }
+          });
 
-      status.State = printerStatus.State?.Flags switch
-      {
-        { Paused: true } or { Pausing: true } => MachineState.Paused,
-        { Printing: true } or { Resuming: true } => MachineState.Operational,
-        _ => MachineState.Idle,
-      };
+        status.State = printerStatus.State?.Flags switch
+        {
+          { Paused: true } or { Pausing: true } => MachineState.Paused,
+          { Printing: true } or { Resuming: true } => MachineState.Operational,
+          _ => MachineState.Idle,
+        };
 
-      if (status.State == MachineState.Operational || status.State == MachineState.Paused)
-      {
-        var jobStatus = await Retrieve<Job>("api/job");
-        status.ElapsedJobTime = jobStatus.Progress?.PrintTime ?? 0;
-        status.EstimatedTimeRemaining = jobStatus.Progress?.PrintTimeLeft ?? 0;
-        status.Progress = Math.Round(jobStatus.Progress?.Completion ?? 0, 1);
+        if (status.State == MachineState.Operational || status.State == MachineState.Paused)
+        {
+          var jobStatus = await Retrieve<Job>("api/job");
+          status.ElapsedJobTime = jobStatus.Progress?.PrintTime ?? 0;
+          status.EstimatedTimeRemaining = jobStatus.Progress?.PrintTimeLeft ?? 0;
+          status.Progress = Math.Round(jobStatus.Progress?.Completion ?? 0, 1);
+        }
+
+        _exceptionCount = 0;
+        _stopwatch.Stop();
+
+        StatusUpdated?.Invoke(this, new MachineStatusEventArgs(status));
       }
+      catch (Exception ex)
+      {
+        if (++_exceptionCount >= MaxExceptionCount)
+        {
+          _stopwatch.Restart();
+          Log.Error("Max consecutive failure count reached, throttling updates", ex);
+        }
 
-      _exceptionCount = 0;
-      _stopwatch.Stop();
-
-      StatusUpdated?.Invoke(this, new MachineStatusEventArgs(status));
+        StatusUpdated?.Invoke(this, new MachineStatusEventArgs(new() { MachineId = Machine.Id }));
+      }
     }
-    catch (Exception ex)
+    finally
     {
-      if (++_exceptionCount >= MaxExceptionCount)
-      {
-        _stopwatch.Restart();
-        Log.Error("Max consecutive failure count reached, throttling updates", ex);
-      }
-
-      StatusUpdated?.Invoke(this, new MachineStatusEventArgs(new() { MachineId = Machine.Id }));
+      _pollSemaphore.Release();
     }
   }
 
@@ -386,5 +401,6 @@ public sealed class OctoPrintMachineProvider(OctoPrintMachine machine, IHttpClie
   {
     _timer?.Dispose();
     _manualHttpClient?.Dispose();
+    _pollSemaphore.Dispose();
   }
 }
