@@ -8,9 +8,7 @@ public class OctoPrintPluginConfiguration : IPluginConfiguration
 {
   public void ConfigureServices(IServiceCollection services)
   {
-    services.AddSingleton<MachineProviderFactory<OctoPrintMachine, OctoPrintMachineProvider>>(serviceProvider =>
-    {
-      return machine => ActivatorUtilities.CreateInstance<OctoPrintMachineProvider>(serviceProvider, machine);
-    });
+    services.AddTransient<IMachineConfigurationProvider<OctoPrintMachine>, OctoPrintMachineConfigurationProvider>();
+    services.AddTransient<IMachineProvider<OctoPrintMachine>, OctoPrintMachineProvider>();
   }
 }

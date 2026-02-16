@@ -2,9 +2,26 @@ using Overseer.Server.Integration.Machines;
 
 namespace Overseer.OctoPrint;
 
-public class OctoPrintMachine : Machine
+[MachineType("OctoPrint")]
+public record OctoPrintMachine : Machine
 {
-  public override string MachineType => "OctoPrint";
+  public OctoPrintMachine() { }
+
+  public OctoPrintMachine(Machine? machine)
+  {
+    if (machine is not null)
+    {
+      MachineType = machine.MachineType;
+      Id = machine.Id;
+      Name = machine.Name;
+      Disabled = machine.Disabled;
+      WebcamUrl = machine.WebcamUrl;
+      WebcamOrientation = machine.WebcamOrientation;
+      Tools = machine.Tools;
+      SortIndex = machine.SortIndex;
+      Properties = machine.Properties;
+    }
+  }
 
   [MachineProperty(
     displayName: "Webcam URL",
@@ -49,10 +66,7 @@ public class OctoPrintMachine : Machine
 
   [MachineProperty(
     displayName: "Client Certificate",
-    description: @"
-      Provide a thumbprint of the client certificate if your OctoPrint server requires client certificate authentication.
-      This should be the thumbprint of the certificate locatable by the Certificate Store.
-    "
+    description: @"Provide a thumbprint of the client certificate if your OctoPrint server requires client certificate authentication. This should be the thumbprint of the certificate locatable by the Certificate Store."
   )]
   public string? ClientCertificate
   {
