@@ -62,10 +62,10 @@ public sealed class OctoPrintMachineProvider(IHttpClientFactory httpClientFactor
 
   async Task Poll()
   {
-    if (!await _pollSemaphore.WaitAsync(0))
+    if (Machine is null)
       return;
 
-    if (Machine is null)
+    if (!await _pollSemaphore.WaitAsync(0))
       return;
 
     try
