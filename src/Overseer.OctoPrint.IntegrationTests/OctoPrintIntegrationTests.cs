@@ -36,7 +36,7 @@ public class OctoPrintIntegrationTests
     };
   }
 
-  private static async Task<MachineStatus> GetStatusAsync(OctoPrintMachineProvider provider)
+  private static async Task<MachineStatus> GetStatusAsync(OctoPrintMachineProvider provider, OctoPrintMachine machine)
   {
     var tcs = new TaskCompletionSource<MachineStatus>();
 
@@ -47,7 +47,7 @@ public class OctoPrintIntegrationTests
     };
 
     // Start polling with a short interval
-    provider.Start(1000);
+    provider.Start(1000, machine);
 
     // Wait for first update or timeout
     var delayTask = Task.Delay(TimeSpan.FromSeconds(10));
@@ -68,9 +68,9 @@ public class OctoPrintIntegrationTests
   {
     // Setup: OctoPrint should be running and connected to printer, but not printing.
     var machine = CreateMachine();
-    using var provider = new OctoPrintMachineProvider(machine, new SimpleHttpClientFactory());
+    using var provider = new OctoPrintMachineProvider(new SimpleHttpClientFactory());
 
-    var status = await GetStatusAsync(provider);
+    var status = await GetStatusAsync(provider, machine);
 
     Assert.Equal(MachineState.Idle, status.State);
   }
@@ -80,9 +80,9 @@ public class OctoPrintIntegrationTests
   {
     // Setup: OctoPrint should be printing a job.
     var machine = CreateMachine();
-    using var provider = new OctoPrintMachineProvider(machine, new SimpleHttpClientFactory());
+    using var provider = new OctoPrintMachineProvider(new SimpleHttpClientFactory());
 
-    var status = await GetStatusAsync(provider);
+    var status = await GetStatusAsync(provider, machine);
 
     Assert.Equal(MachineState.Operational, status.State);
   }
@@ -95,9 +95,9 @@ public class OctoPrintIntegrationTests
     // For the purpose of this test, we assume "Offline" means the OctoPrint instance reports disconnect from Printer.
 
     var machine = CreateMachine();
-    using var provider = new OctoPrintMachineProvider(machine, new SimpleHttpClientFactory());
+    using var provider = new OctoPrintMachineProvider(new SimpleHttpClientFactory());
 
-    var status = await GetStatusAsync(provider);
+    var status = await GetStatusAsync(provider, machine);
     Assert.Equal(MachineState.Offline, status.State);
   }
 }
