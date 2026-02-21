@@ -16,6 +16,9 @@ env:
   PROJECT_PATH: "src/Overseer.OctoPrint/Overseer.OctoPrint.csproj"
   SOLUTION_PATH: "src/Overseer.OctoPrint.sln"
 
+permissions:
+  contents: write
+
 jobs:
   build-and-release:
     runs-on: ubuntu-latest
