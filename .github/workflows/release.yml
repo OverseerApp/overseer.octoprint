@@ -45,11 +45,6 @@ jobs:
           echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
           echo "Version: $VERSION"
 
-      - name: Update project version
-        run: |
-          sed -i "s|<Version>.*</Version>|<Version>${{ steps.get_version.outputs.VERSION }}</Version>|" ${{ env.PROJECT_PATH }}
-          cat ${{ env.PROJECT_PATH }}
-
       - name: Restore dependencies
         run: dotnet restore ${{ env.SOLUTION_PATH }}
 
