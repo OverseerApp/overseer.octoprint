@@ -1,0 +1,4 @@
+﻿<Solution>
+  <Project Path="Overseer.OctoPrint/Overseer.OctoPrint.csproj" />
+  <Project Path="Overseer.OctoPrint.IntegrationTests/Overseer.OctoPrint.IntegrationTests.csproj" />
+</Solution>
